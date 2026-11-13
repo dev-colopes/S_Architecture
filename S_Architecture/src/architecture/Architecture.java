@@ -186,7 +186,7 @@ public class Architecture {
 		commandsList.add("jmpMem"); // 15
 		commandsList.add("jnz"); // 16
 		commandsList.add("jeq"); // 17
-		commandsList.add("jwl"); // 18
+		commandsList.add("jlw"); // 18
 		commandsList.add("incReg"); // 19
 		commandsList.add("moveRegReg"); // 20
 		commandsList.add("moveRegMem"); // 21
@@ -896,6 +896,8 @@ public class Architecture {
 		statusMemory.storeIn1(); 
 		
 		ula.inc();
+		ula.read(1); 
+		             
 		PC.internalStore();       
 		PC.read();                
 		statusMemory.storeIn0();  
