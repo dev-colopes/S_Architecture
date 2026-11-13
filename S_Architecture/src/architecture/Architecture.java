@@ -179,6 +179,19 @@ public class Architecture {
 		commandsList.add("inc");   //8		
 		commandsList.add("moveRegReg"); //9
 		commandsList.add("addRegReg"); // 10
+		commandsList.add("addMemReg"); // 11
+		commandsList.add("addRegMem"); // 12
+		commandsList.add("subRegReg"); // 13
+		commandsList.add("subImmReg"); // 14
+		commandsList.add("jmpMem"); // 15
+		commandsList.add("jnz"); // 16
+		commandsList.add("jeq"); // 17
+		commandsList.add("jwl"); // 18
+		commandsList.add("incReg"); // 19
+		commandsList.add("moveRegReg"); // 20
+		commandsList.add("moveRegMem"); // 21
+		commandsList.add("moveMemReg"); // 22
+		commandsList.add("moveImmReg"); // 23
 	}
 
 	
@@ -735,6 +748,163 @@ public class Architecture {
 		PC.store(); //stores into PC
 	}
 	
+	/*
+	 * This method implements the microprogram for
+	 * 			jmp <mem>              || PC <- mem (desvio incondicional)
+	 */
+	
+	public void jmpMem() {
+		PC.internalRead();
+		ula.store(1);
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();
+		
+		PC.read();
+		memory.read();
+		PC.store();
+	}
+	
+	/*
+	 * 	This method implements the microprogram for
+	 *		 jnz <mem>               || se última operação≠0 então PC <- mem (desvio condicional)
+	 * 
+	 * CORREÇÃO (comentário): o original dizia "se última operação=0", que é
+	 * a semântica do jz. O jnz desvia quando o resultado NÃO é zero
+	 * (bit ZERO = 0) — que é exatamente o que o corpo do método faz:
+	 * o alvo vai para a posição 0 da status memory e a próxima instrução
+	 * para a posição 1 (inverso do jz), e a leitura é indexada pelo bit 0.
+	 */
+	public void jnz() {
+		PC.internalRead();
+		ula.store(1);
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();//now PC points to the parameter address
+		PC.read();
+		memory.read();// now the parameter value (address of the jnz) is in the external bus
+		statusMemory.storeIn0(); // CORREÇÃO (comentário): o original dizia "position 1";
+		                         // o alvo do desvio vai para a posição 0 (storeIn0)
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();//now PC points to the next instruction
+		PC.read();//now the bus has the next istruction address
+		statusMemory.storeIn1(); // CORREÇÃO (comentário): o original dizia "position 0";
+		                         // a próxima instrução vai para a posição 1 (storeIn1)
+		extbus1.put(Flags.getBit(0)); //the ZERO bit is in the external bus 
+		statusMemory.read(); //gets the correct address (next instruction or parameter address)
+		PC.store(); //stores into PC
+	}
+	
+	/*
+	 * This method implements the microprogram for
+	 * 		jeq %<regA> %<regB> <mem>   || se RegA==RegB então PC <- mem (desvio condicional)
+	 * */
+	public void jeq() {
+		PC.internalRead();
+		ula.store(1);
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();
+		
+		// pegando o conteudo do regA
+		PC.read();
+		memory.read();
+		demux.setValue(extbus1.get());
+		registersInternalRead();
+		ula.store(0);
+		
+		// apontando para o próximo parâmetro
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();
+		
+		// pegando o valor do regB
+		PC.read();
+		memory.read();
+		demux.setValue(extbus1.get());
+		registersInternalRead();
+		ula.store(1);
+		
+		ula.sub();
+		ula.read(1);              
+		setStatusFlags(intbus1.get());
+		
+		PC.internalRead();
+		ula.store(1);
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();       
+		
+		PC.read();
+		memory.read();            // extbus1 = alvo do desvio
+		statusMemory.storeIn1();  // statusMemory[1] = alvo
+		
+		ula.inc();
+		ula.read(1);              
+		PC.internalStore();       
+		PC.read();                
+		statusMemory.storeIn0();  
+		
+		extbus1.put(Flags.getBit(0));
+		statusMemory.read();
+		PC.store();
+	}
+	
+	/*
+	 * This method implements the microprogram for
+	 * 	jlw %<regA> %<regB> <mem>   || se RegA<RegB então PC <- mem (desvio condicional)
+	 */
+	public void jlw() {
+		PC.internalRead();
+		ula.store(1);
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();
+		
+		// pegando o conteudo do regA
+		PC.read();
+		memory.read();
+		demux.setValue(extbus1.get());
+		registersInternalRead();
+		ula.store(0);
+		
+		// apontando para o próximo parâmetro
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();
+		
+		// pegando o valor do regB
+		PC.read();
+		memory.read();
+		demux.setValue(extbus1.get());
+		registersInternalRead();
+		ula.store(1);
+		
+		ula.sub(); 
+		ula.read(1);              
+		setStatusFlags(intbus1.get());
+		
+		PC.internalRead();
+		ula.store(1);
+		ula.inc();
+		ula.read(1);
+		PC.internalStore();       
+		
+		PC.read();
+		memory.read();            
+		statusMemory.storeIn1(); 
+		
+		ula.inc();
+		PC.internalStore();       
+		PC.read();                
+		statusMemory.storeIn0();  
+		
+		extbus1.put(Flags.getBit(1));
+		statusMemory.read();
+		PC.store();
+	}
+	
 	/**
 	 * This method implements the microprogram for
 	 * 					read address
@@ -1225,6 +1395,45 @@ public class Architecture {
 			break;
 		case 10:
 			addRegReg();
+			break;
+		case 11:
+			addMemReg();
+			break;
+		case 12:
+			addRegMem();
+			break;
+		case 13:
+			subRegReg();
+			break;
+		case 14:
+			subImmReg();
+			break;
+		case 15:
+			jmpMem();
+			break;
+		case 16:
+			jnz();
+			break;
+		case 17:
+			jeq();
+			break;
+		case 18:
+			jlw();
+			break;
+		case 19:
+			incReg();
+			break;
+		case 20:
+			moveRegReg();
+			break;
+		case 21:
+			moveRegMem();
+			break;
+		case 22:
+			moveMemReg();
+			break;
+		case 23:
+			moveImmReg();
 			break;
 		default:
 			halt = true;

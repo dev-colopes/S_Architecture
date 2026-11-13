@@ -593,6 +593,184 @@ public class TestArchitecture {
 	}
 	
 	@Test
+	public void testJmpMem() {
+		Architecture arch = new Architecture();
+		
+		// PC = 10
+		arch.getIntbus1().put(10);
+		arch.getPC().internalStore();
+		
+		// mem[11] = 25 (o alvo do desvio, parâmetro do comando)
+		arch.getExtbus1().put(11);
+		arch.getMemory().store();
+		arch.getExtbus1().put(25);
+		arch.getMemory().store();
+		
+		// PC deve estar em 10 antes do desvio
+		arch.getPC().read();
+		assertEquals(10, arch.getExtbus1().get());
+		
+		arch.jmpMem();
+		
+		// PC <- mem[11] = 25 (desvio incondicional)
+		arch.getPC().internalRead();
+		assertEquals(25, arch.getIntbus1().get());
+	}
+	
+	@Test
+	public void testJnz() {
+		Architecture arch = new Architecture();
+		
+		// PC = 30; mem[31] = 25 (alvo do desvio)
+		arch.getIntbus1().put(30);
+		arch.getPC().internalStore();
+		arch.getExtbus1().put(31);
+		arch.getMemory().store();
+		arch.getExtbus1().put(25);
+		arch.getMemory().store();
+		
+		// CASE 1.
+		// Bit ZERO = 0 (resultado diferente de zero) -> DESVIA
+		arch.getFlags().setBit(0, 0);
+		
+		//testing if PC stores the number 30
+		arch.getPC().read();
+		assertEquals(30, arch.getExtbus1().get());
+		
+		arch.jnz();
+		
+		//PC must be storing the number 25 (alvo)
+		arch.getPC().internalRead();
+		assertEquals(25, arch.getIntbus1().get());
+		
+		// CASE 2.
+		// Bit ZERO = 1 (resultado zero) -> NÃO desvia
+		arch.getFlags().setBit(0, 1);
+		//restaurando PC = 30 (o parâmetro em mem[31] não mudou)
+		arch.getExtbus1().put(30);
+		arch.getPC().store();
+		//destroying the data in external bus
+		arch.getExtbus1().put(0);
+		
+		arch.jnz();
+		
+		//PC = 32 (30 + opcode + 1 parâmetro): desvio não tomado
+		arch.getPC().internalRead();
+		assertEquals(32, arch.getIntbus1().get());
+	}
+	
+	@Test
+	public void testJeq() {
+		Architecture arch = new Architecture();
+		
+		// o comando jeq %regA %regB <mem> fica na posição 10 e tem TRÊS parâmetros:
+		// 11 -> 0 (id do regA = RPG, índice 0)
+		// 12 -> 1 (id do regB = RPG1, índice 1)
+		// 13 -> 50 (alvo do desvio)
+		arch.getMemory().getDataList()[11] = 0;
+		arch.getMemory().getDataList()[12] = 1;
+		arch.getMemory().getDataList()[13] = 50;
+		
+		// CASE 1: RegA == RegB -> DESVIA
+		arch.getExtbus1().put(7);
+		arch.getRegistersList().get(0).store(); // regA = 7
+		arch.getExtbus1().put(7);
+		arch.getRegistersList().get(1).store(); // regB = 7
+		
+		arch.getIntbus1().put(10);
+		arch.getPC().internalStore();
+		
+		arch.jeq();
+		
+		// 7 - 7 = 0 -> bit ZERO ligado (os flags vêm do RESULTADO da subtração)
+		assertEquals(1, arch.getFlags().getBit(0));
+		
+		// PC <- 50 (desvio tomado)
+		arch.getPC().internalRead();
+		assertEquals(50, arch.getIntbus1().get());
+		
+		// CASE 2: RegA != RegB -> NÃO desvia
+		arch.getExtbus1().put(8);
+		arch.getRegistersList().get(1).store(); // regB = 8 (regA continua 7)
+		
+		arch.getIntbus1().put(10);
+		arch.getPC().internalStore();
+		
+		arch.jeq();
+		
+		// 7 - 8 = -1 -> bit ZERO desligado, bit NEG ligado
+		assertEquals(0, arch.getFlags().getBit(0));
+		assertEquals(1, arch.getFlags().getBit(1));
+		
+		// PC = 14 (10 + opcode + 3 parâmetros): desvio NÃO tomado
+		arch.getPC().internalRead();
+		assertEquals(14, arch.getIntbus1().get());
+	}
+	
+	@Test
+	public void testJlw() {
+		Architecture arch = new Architecture();
+		
+		// o comando jlw %regA %regB <mem> fica na posição 10 e tem TRÊS parâmetros:
+		// 11 -> 0 (id do regA = RPG, índice 0)
+		// 12 -> 1 (id do regB = RPG1, índice 1)
+		// 13 -> 50 (alvo do desvio)
+		arch.getMemory().getDataList()[11] = 0;
+		arch.getMemory().getDataList()[12] = 1;
+		arch.getMemory().getDataList()[13] = 50;
+		
+		// CASE 1: RegA(5) < RegB(8) -> DESVIA
+		arch.getExtbus1().put(5);
+		arch.getRegistersList().get(0).store(); // regA = 5
+		arch.getExtbus1().put(8);
+		arch.getRegistersList().get(1).store(); // regB = 8
+		
+		arch.getIntbus1().put(10);
+		arch.getPC().internalStore();
+		
+		arch.jlw();
+		
+		// 5 - 8 = -3 -> bit NEG ligado, bit ZERO desligado
+		// (os flags vêm do RESULTADO da subtração)
+		assertEquals(1, arch.getFlags().getBit(1));
+		assertEquals(0, arch.getFlags().getBit(0));
+		
+		// PC <- 50 (desvio tomado)
+		arch.getPC().internalRead();
+		assertEquals(50, arch.getIntbus1().get());
+		
+		// CASE 2: RegA(5) == RegB(5) -> NÃO desvia (menor ESTRICTO)
+		arch.getExtbus1().put(5);
+		arch.getRegistersList().get(1).store(); // regB = 5 (regA continua 5)
+		
+		arch.getIntbus1().put(10);
+		arch.getPC().internalStore();
+		
+		arch.jlw();
+		
+		// 5 - 5 = 0 -> bit NEG desligado
+		assertEquals(0, arch.getFlags().getBit(1));
+		// PC = 14 (10 + opcode + 3 parâmetros): desvio NÃO tomado
+		arch.getPC().internalRead();
+		assertEquals(14, arch.getIntbus1().get());
+		
+		// CASE 3: RegA(8) > RegB(5) -> NÃO desvia
+		arch.getExtbus1().put(8);
+		arch.getRegistersList().get(0).store(); // regA = 8 (regB continua 5)
+		
+		arch.getIntbus1().put(10);
+		arch.getPC().internalStore();
+		
+		arch.jlw();
+		
+		// 8 - 5 = 3 -> bit NEG desligado
+		assertEquals(0, arch.getFlags().getBit(1));
+		// PC = 14: desvio NÃO tomado
+		arch.getPC().internalRead();
+		assertEquals(14, arch.getIntbus1().get());
+	}
+	
+	@Test
 	public void testRead() {
 		Architecture arch = new Architecture();
 		//storing the number 10 in RPG
