@@ -8,202 +8,28 @@ import org.junit.Test;
 
 public class testAssembler {
 
-	@Test
-	public void testProccessCommand() {
-		
-		/*
-		 *  we must to test if the assembler generates correct sequence lines
-		 *  of object program for all of these commands
-				Code	Command		arg
-				0		add 		addr (rpg0 <- rpg0 + addr)
-				1		sub 		addr (rpg0 <- rpg0 - addr)
-				2		jmp 		addr (pc <- addr)
-				3		jz 			addr  (se bitZero pc <- addr)
-				4		jn 			addr  (se bitneg pc <- addr)
-				5		read 		addr (rrpg0pg <- addr)
-				6		store 		addr  (addr <- rpg0)
-				7		ldi 		x (rpg0 <- x. x must be an integer)
-				8		inc    		(rpg0++)
-				9       move        %regA %regB (regA <- regB)
-		 */
-		Assembler ass = new Assembler();
-		String commandLine[] = new String[3];
-		ArrayList<String> returnedObj = new ArrayList<>();
-		
-		//first test: add
-		commandLine[0] = "add";
-		commandLine[1] = "variable";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("0", returnedObj.get(0)); //the add code is 0
-		assertEquals("&variable", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//second test: sub
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "sub";
-		commandLine[1] = "variable";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("1", returnedObj.get(0)); //the add code is 0
-		assertEquals("&variable", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//third test: jmp
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "jmp";
-		commandLine[1] = "label";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("2", returnedObj.get(0)); //the add code is 0
-		assertEquals("&label", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//fourth test: jz
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "jz";
-		commandLine[1] = "label";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("3", returnedObj.get(0)); //the add code is 0
-		assertEquals("&label", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//fifth test: jn
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "jn";
-		commandLine[1] = "label";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("4", returnedObj.get(0)); //the add code is 0
-		assertEquals("&label", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//sixth test: read
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "read";
-		commandLine[1] = "address";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("5", returnedObj.get(0)); //the add code is 0
-		assertEquals("&address", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//seventh test: store
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "store";
-		commandLine[1] = "address";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("6", returnedObj.get(0)); //the add code is 0
-		assertEquals("&address", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//eighth test: ldi
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "ldi";
-		commandLine[1] = "40";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("7", returnedObj.get(0)); //the add code is 0
-		assertEquals("40", ass.getObjProgram().get(1));
-		assertEquals(2, ass.getObjProgram().size()); //only two lines: the command and the immediate
-		
-		//nineth test: inc
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "inc";
-		commandLine[1] = "address";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("8", returnedObj.get(0)); //the add code is 0
-		assertEquals(1, ass.getObjProgram().size()); //only one lines: the command and no parameters
-		
-		//tenth test: move %regA %regB
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "move";
-		commandLine[1] = "%RPG0";
-		commandLine[2] = "%RPG1";
-		ass.proccessCommand(commandLine);
-		returnedObj = ass.getObjProgram();
-		assertEquals("9", returnedObj.get(0)); //the move %regA %regB code is 9
-		assertEquals("%RPG0", ass.getObjProgram().get(1));
-		assertEquals("%RPG1", ass.getObjProgram().get(2));
-		assertEquals(3, ass.getObjProgram().size()); //only two lines: the command and the address
-		
-		//final test: a small program
-		//testing the following lines
-		//sub adr1
-		//add adr2
-		//jmp label1
-		//inc
-		//jn label2
-		//ldi 86
-		//move %RPG0 %RPG1
-		//read adr3
-		//let's start!!!
-		returnedObj = new ArrayList<>();
-		ass = new Assembler();
-		commandLine[0] = "sub";
-		commandLine[1] = "adr1";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "add";
-		commandLine[1] = "adr2";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "jmp";
-		commandLine[1] = "label1";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "inc";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "jn";
-		commandLine[1] = "label2";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "ldi";
-		commandLine[1] = "86";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "move";
-		commandLine[1] = "%RPG0";
-		commandLine[2] = "%RPG1";
-		ass.proccessCommand(commandLine);
-		commandLine[0] = "read";
-		commandLine[1] = "adr3";
-		ass.proccessCommand(commandLine);
-		//now, getting the object program
-		returnedObj = ass.getObjProgram();
-		assertEquals(16, returnedObj.size()); //the object program must have 16 lines
-		
-		assertEquals("1", returnedObj.get(0)); //the code of sub is 1
-		assertEquals("&adr1", returnedObj.get(1)); //the parameter
-		
-		assertEquals("0", returnedObj.get(2)); //the code of add is 0
-		assertEquals("&adr2", returnedObj.get(3)); //the parameter
-		
-		assertEquals("2", returnedObj.get(4)); //the code of jmp is 2
-		assertEquals("&label1", returnedObj.get(5)); //the parameter
-		
-		assertEquals("8", returnedObj.get(6)); //the code of inc is 8
-		
-		assertEquals("4", returnedObj.get(7)); //the code of jn is 4
-		assertEquals("&label2", returnedObj.get(8)); //the parameter
-		
-		assertEquals("7", returnedObj.get(9)); //the code of ldi is 7
-		assertEquals("86", returnedObj.get(10)); //the parameter
-		
-		assertEquals("9", returnedObj.get(11)); //the code of moveRegReg is 9
-		assertEquals("%RPG0", returnedObj.get(12)); //the parameter
-		assertEquals("%RPG1", returnedObj.get(13)); //the parameter
-		
-		assertEquals("5", returnedObj.get(14)); //the code of read is 5
-		assertEquals("&adr3", returnedObj.get(15)); //the parameter
-	}
+    @Test
+    public void testProccessCommand() {
+        String[][] cases = {
+            {"add t", "0 &t"}, {"sub t", "1 &t"}, {"jmp fim", "2 &fim"},
+            {"jz fim", "3 &fim"}, {"jn fim", "4 &fim"}, {"read t", "5 &t"},
+            {"store t", "6 &t"}, {"ldi -3", "7 -3"}, {"inc", "8"},
+            {"move %RPG0 %RPG1", "9 %RPG0 %RPG1"},
+            {"add %RPG1 %RPG2", "10 %RPG1 %RPG2"}, {"add t %RPG2", "11 &t %RPG2"},
+            {"add %RPG2 t", "12 %RPG2 &t"}, {"sub %RPG1 %RPG2", "13 %RPG1 %RPG2"},
+            {"sub -5 %RPG1", "14 -5 %RPG1"}, {"jmpMem fim", "15 &fim"},
+            {"jnz fim", "16 &fim"}, {"jeq %RPG0 %RPG3 fim", "17 %RPG0 %RPG3 &fim"},
+            {"jlw %RPG1 %RPG2 fim", "18 %RPG1 %RPG2 &fim"}, {"inc %RPG3", "19 %RPG3"},
+            {"move t %RPG2", "21 &t %RPG2"}, {"move %RPG2 t", "22 %RPG2 &t"},
+            {"move 5 %RPG1", "23 5 %RPG1"}
+        };
+        for (String[] example : cases) {
+            Assembler assembler = new Assembler();
+            assembler.proccessCommand(example[0].split(" "));
+            assertEquals(example[0], java.util.Arrays.asList(example[1].split(" ")),
+                    assembler.getObjProgram());
+        }
+    }
 
 	@Test
 	public void testParse() {
@@ -485,8 +311,8 @@ public class testAssembler {
 		//now the test!
 		//RPG0 must be replaced by 0 
 		//RPG1 must be replaced by 1
-		//PC must be replaced by 2
-		//IR must be replaced by 3
+		//PC must be replaced by 4
+		//IR must be replaced by 5
 		
 		ass.replaceRegisters();
 		
@@ -499,11 +325,11 @@ public class testAssembler {
 		assertEquals("1", ass.getExecProgram().get(1));
 		assertEquals("1", ass.getExecProgram().get(13));
 		
-		//pc is now the number 2. It must be found in position 4 
-		assertEquals("2", ass.getExecProgram().get(4));
+		//pc is now the number 4. It must be found in position 4 
+		assertEquals("4", ass.getExecProgram().get(4));
 
-		//ir is now the number 3. It must be found in position 9 
-		assertEquals("3", ass.getExecProgram().get(9));
+		//ir is now the number 5. It must be found in position 9 
+		assertEquals("5", ass.getExecProgram().get(9));
 		
 
 		
@@ -606,8 +432,25 @@ public class testAssembler {
 	}
 	
 	
-	//@Test
-	public void testRead() {
-		fail("Not yet implemented");
-	}
+	@Test
+	public void testRead() throws Exception {
+        java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("assembler-test");
+        java.nio.file.Path source = dir.resolve("program.dsf");
+        java.nio.file.Path output = dir.resolve("program.dxf");
+        try {
+            java.nio.file.Files.write(source, java.util.Arrays.asList(
+                    "t", "ldi 5", "store t", "inicio:", "add t", "jn inicio"));
+            String base = dir.resolve("program").toString();
+            Assembler assembler = new Assembler();
+            assembler.read(base);
+            assembler.parse();
+            assembler.makeExecutable(base);
+            assertEquals(java.util.Arrays.asList("7", "5", "6", "127", "0", "127", "4", "4", "-1"),
+                    java.nio.file.Files.readAllLines(output));
+        } finally {
+            java.nio.file.Files.deleteIfExists(output);
+            java.nio.file.Files.deleteIfExists(source);
+            java.nio.file.Files.deleteIfExists(dir);
+        }
+    }
 }

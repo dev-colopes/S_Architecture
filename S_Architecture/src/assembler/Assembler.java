@@ -98,7 +98,8 @@ public class Assembler {
 	public void read(String filename) throws IOException {
 		   BufferedReader br = new BufferedReader(new		 
 		   FileReader(filename+".dsf"));
-		   String linha;
+		   lines.clear();
+           String linha;
 		   while ((linha = br.readLine()) != null) {
 			     lines.add(linha);
 			}
@@ -112,117 +113,101 @@ public class Assembler {
 	 * generating, for each one, the corresponding machine code
 	 * @param lines
 	 */
-	public void parse() {
-		for (String s:lines) {
-			String tokens[] = s.split(" ");
-			if (findCommandNumber(tokens)>=0) { //the line is a command
-				proccessCommand(tokens);
-			}
-			else { //the line is not a command: so, it can be a variable or a label
-				if (tokens[0].endsWith(":")){ //if it ends with : it is a label
-					String label = tokens[0].substring(0, tokens[0].length()-1); //removing the last character
-					labels.add(label);
-					labelsAdresses.add(objProgram.size());
-				}
-				else //otherwise, it must be a variable
-					variables.add(tokens[0]);
-			}
-		}
-		
-	}
+    public void parse() {
+        objProgram.clear();
+        variables.clear();
+        labels.clear();
+        labelsAdresses.clear();
 
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i).trim();
+            if (line.isEmpty()) continue;
+            String[] tokens = line.split("\\s+");
+            try {
+                String name = tokens[0];
+                boolean label = name.endsWith(":");
+                if (label || (tokens.length == 1 && !isCommand(name))) {
+                    if (label) name = name.substring(0, name.length() - 1);
+                    if (tokens.length != 1 || !isSymbol(name) || isCommand(name)
+                            || variables.contains(name) || labels.contains(name)) {
+                        throw new IllegalArgumentException("Declaração inválida: " + line);
+                    }
+                    if (label) {
+                        labels.add(name);
+                        labelsAdresses.add(objProgram.size());
+                    } else {
+                        variables.add(name);
+                    }
+                } else {
+                    proccessCommand(tokens);
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Linha " + (i + 1) + ": " + e.getMessage(), e);
+            }
+        }
+    }
 
+    private boolean isCommand(String name) {
+        return commands.contains(name) || name.equals("move");
+    }
 
-	/**
-	 * This method processes a command, putting it and its parameters (if they have)
-	 * into the final array
-	 * @param tokens
-	 */
-	protected void proccessCommand(String[] tokens) {
-		String command = tokens[0];
-		String parameter ="";
-		String parameter2 = "";
-		int commandNumber = findCommandNumber(tokens);
-		if (commandNumber == 0) { //must to proccess an add command
-			parameter = tokens[1];
-			parameter = "&"+parameter; //this is a flag to indicate that is a position in memory
-		}
-		if (commandNumber == 1) { //must to proccess an sub command
-			parameter = tokens[1];
-			parameter = "&"+parameter;//this is a flag to indicate that is a position in memory		
-		}
-		if (commandNumber == 2) { //must to proccess an jmp command
-			parameter = tokens[1];
-			parameter = "&"+parameter;//this is a flag to indicate that is a position in memory
-		}
-		if (commandNumber == 3) { //must to proccess an jz command
-			parameter = tokens[1];
-			parameter = "&"+parameter;//this is a flag to indicate that is a position in memory
-		}
-		if (commandNumber == 4) { //must to proccess an jn command
-			parameter = tokens[1];
-			parameter = "&"+parameter;//this is a flag to indicate that is a position in memory
-		}
-		if (commandNumber == 5) { //must to proccess an read command
-			parameter = tokens[1];
-			parameter = "&"+parameter;//this is a flag to indicate that is a position in memory
-		}
-		if (commandNumber == 6) { //must to proccess an store command
-			parameter = tokens[1];
-			parameter = "&"+parameter;//this is a flag to indicate that is a position in memory
-		}
-		if (commandNumber == 7) { //must to proccess an ldi command
-			parameter = tokens[1];
-		}
-		if (commandNumber == 8) { //must to proccess an inc command
-			
-		}
-		if (commandNumber == 9) { //must to proccess an moveRegReg command
-			parameter = tokens[1];
-			parameter2 = tokens[2];
-		}
-		objProgram.add(Integer.toString(commandNumber));
-		if (!parameter.isEmpty()) {
-			objProgram.add(parameter);
-		}
-		if (!parameter2.isEmpty()) {
-			objProgram.add(parameter2);
-		}
-	}
-	
+    private boolean isSymbol(String value) {
+        return value.matches("[A-Za-z][A-Za-z0-9]*");
+    }
 
-	/**
-	 * This method uses the tokens to search a command
-	 * in the commands list and returns its id.
-	 * Some commands (as move) can have multiple formats (reg reg, mem reg, reg mem) and
-	 * multiple ids, one for each format.
-	 * @param tokens
-	 * @return
-	 */
-	private int findCommandNumber(String[] tokens) {
-		int p = commands.indexOf(tokens[0]);
-		if (p<0){ //the command isn't in the list. So it must have multiple formats
-			if ("move".equals(tokens[0])) //the command is a move
-				p = proccessMove(tokens);
-		}
-		return p;
-	}
+    // Uma linha por opcode de Architecture.decodeExecute().
+    // R = registrador, M = endereço ou símbolo, I = inteiro imediato.
+    private static final String[][] FORMS = {
+        {"add", "M"}, {"sub", "M"}, {"jmp", "M"}, {"jz", "M"},
+        {"jn", "M"}, {"read", "M"}, {"store", "M"}, {"ldi", "I"},
+        {"inc", ""}, {"move", "RR"},
+        {"add", "RR"}, {"add", "MR"}, {"add", "RM"},
+        {"sub", "RR"}, {"sub", "IR"}, {"jmpMem", "M"},
+        {"jnz", "M"}, {"jeq", "RRM"}, {"jlw", "RRM"}, {"inc", "R"},
+        {"move", "RR"},
+        {"move", "MR"}, // 21: moveRegMem() lê memória e escreve no registrador
+        {"move", "RM"}, // 22: moveMemReg() lê registrador e escreve na memória
+        {"move", "IR"}
+    };
 
-	/**
-	 * This method proccess a move command.
-	 * It must have differents formats, meaning differents internal commands
-	 * @param tokens
-	 * @return
-	 */
-	private int proccessMove(String[] tokens) {
-		String p1 = tokens[1];
-		String p2 = tokens[2];
-		int p=-1;
-		if ((p1.startsWith("%"))&&(p2.startsWith("%"))) { //this is a moveRegReg comand
-			p = commands.indexOf("moveRegReg");
-		}
-		return p;
-	}
+    protected void proccessCommand(String[] tokens) {
+        int length = tokens.length;
+        while (length > 1 && tokens[length - 1] == null) length--;
+        for (int opcode = 0; opcode < FORMS.length; opcode++) {
+            String mnemonic = FORMS[opcode][0];
+            String format = FORMS[opcode][1];
+            if (!tokens[0].equals(mnemonic) && !tokens[0].equals(commands.get(opcode))) continue;
+            if (format.length() != length - 1) continue;
+
+            ArrayList<String> words = new ArrayList<>();
+            words.add(Integer.toString(opcode));
+            for (int i = 1; i < length; i++) {
+                String value = tokens[i];
+                // Em "move 5 %RPG1", 5 é imediato. "move t %RPG1" lê a variável.
+                if (opcode == 21 && tokens[0].equals("move") && !isSymbol(value) && i == 1) break;
+                String word = encodeOperand(format.charAt(i - 1), value);
+                if (word == null) break;
+                words.add(word);
+            }
+            if (words.size() == length) {
+                objProgram.addAll(words);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Instrução ou operandos inválidos: " + String.join(" ", tokens));
+    }
+
+    private String encodeOperand(char type, String value) {
+        if (type == 'R') {
+            return value.startsWith("%") && searchRegisterId(value.substring(1), arch.getRegistersList()) >= 0
+                    ? value : null;
+        }
+        if (type == 'M' && isSymbol(value)) return "&" + value;
+        if (!value.matches("[+-]?[0-9]+")) return null;
+        int number = Integer.parseInt(value);
+        if (type == 'M' && (number < 0 || number >= arch.getMemorySize())) return null;
+        return Integer.toString(number);
+    }
 
 	/**
 	 * This method creates the executable program from the object program
@@ -238,8 +223,10 @@ public class Assembler {
 	 */
 	public void makeExecutable(String filename) throws IOException {
 		if (!checkLabels())
-			return;
-		execProgram = (ArrayList<String>) objProgram.clone();
+            throw new IllegalArgumentException("Símbolo não declarado.");
+        if (objProgram.size() + 1 + variables.size() > arch.getMemorySize())
+            throw new IllegalArgumentException("Programa e variáveis excedem a memória.");
+		execProgram = new ArrayList<>(objProgram);
 		replaceAllVariables();
 		replaceLabels(); //replacing all labels by the address they refer to
 		replaceRegisters(); //replacing all registers by the register id they refer to
