@@ -1,14 +1,18 @@
 package assembler;
 
-import architecture.Architecture;
-import components.Register;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+
+import components.Register;
+
+import architecture.Architecture;
 
 public class Assembler {
 	
@@ -136,86 +140,111 @@ public class Assembler {
 	 */
 	protected void proccessCommand(String[] tokens) {
 		int opcode = findCommandNumber(tokens);
-		String command = commands.get(opcode);
-		String format;
-		switch (command) {
-		case "inc": format = ""; break;
-		case "incReg": format = "R"; break;
-		case "ldi": format = "I"; break;
-		case "addRegReg": case "subRegReg": case "moveRegReg":
-			format = "RR"; break;
-		case "addMemReg": case "moveRegMem":
-			format = "MR"; break;
-		case "addRegMem": case "moveMemReg":
-			format = "RM"; break;
-		case "moveImmReg": case "subImmReg":
-			format = "IR"; break;
-		case "jeq": case "jlw":
-			format = "RRM"; break;
-		default: // add, sub, read, store e desvios com um endereço
-			format = "M";
+		String p1 = "", p2 = "", p3 = "";
+		switch (opcode) {
+		case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 15: case 16:
+			p1 = address(operand(tokens, 1));
+			break;
+		case 7: // ldi
+			p1 = immediate(operand(tokens, 1));
+			break;
+		case 8: // inc sem operando
+			break;
+		case 9: case 10: case 13: case 20: // dois registradores
+			p1 = register(operand(tokens, 1));
+			p2 = register(operand(tokens, 2));
+			break;
+		case 11: case 21: // memória para registrador
+			p1 = address(operand(tokens, 1));
+			p2 = register(operand(tokens, 2));
+			break;
+		case 12: case 22: // registrador para memória
+			p1 = register(operand(tokens, 1));
+			p2 = address(operand(tokens, 2));
+			break;
+		case 14: case 23: // imediato e registrador
+			p1 = immediate(operand(tokens, 1));
+			p2 = register(operand(tokens, 2));
+			break;
+		case 17: case 18: // jeq e jlw
+			p1 = register(operand(tokens, 1));
+			p2 = register(operand(tokens, 2));
+			p3 = address(operand(tokens, 3));
+			break;
+		case 19: // inc com registrador
+			p1 = register(operand(tokens, 1));
+			break;
+		default:
+			throw new IllegalArgumentException("Comando desconhecido: " + tokens[0]);
 		}
 
-		int length = tokens.length;
-		while (length > 1 && tokens[length - 1] == null) length--;
-		if (length != format.length() + 1) throw invalidCommand(tokens);
-		ArrayList<String> words = new ArrayList<>();
-		words.add(Integer.toString(opcode));
-		for (int i = 1; i < length; i++) {
-			String value = tokens[i];
-			switch (format.charAt(i - 1)) {
-			case 'R':
-				if (!value.startsWith("%") ||
-					searchRegisterId(value.substring(1), arch.getRegistersList()) < 0)
-					throw invalidCommand(tokens);
-				break;
-			case 'I':
-				value = Integer.toString(Integer.parseInt(value));
-				break;
-			case 'M':
-				if (value.matches("[A-Za-z][A-Za-z0-9]*")) {
-					value = "&" + value;
-				} else {
-					int address = Integer.parseInt(value);
-					if (address < 0 || address >= arch.getMemorySize()) throw invalidCommand(tokens);
-					value = Integer.toString(address);
-				}
-				break;
-			}
-			words.add(value);
-		}
-		objProgram.addAll(words);
+		int next = 1;
+		if (!p1.isEmpty()) next++;
+		if (!p2.isEmpty()) next++;
+		if (!p3.isEmpty()) next++;
+		if (next < tokens.length && tokens[next] != null)
+			throw new IllegalArgumentException("Operando extra em " + tokens[0]);
+
+		objProgram.add(Integer.toString(opcode));
+		if (!p1.isEmpty()) objProgram.add(p1);
+		if (!p2.isEmpty()) objProgram.add(p2);
+		if (!p3.isEmpty()) objProgram.add(p3);
 	}
 
 	private int findCommandNumber(String[] tokens) {
 		String command = tokens[0];
 		boolean twoOperands = tokens.length >= 3 && tokens[2] != null;
 		if ("move".equals(command)) return proccessMove(tokens);
-		if ("add".equals(command) && twoOperands) {
-			if (tokens[1].startsWith("%"))
-				command = tokens[2].startsWith("%") ? "addRegReg" : "addRegMem";
-			else
-				command = "addMemReg";
-		}
-		if ("sub".equals(command) && twoOperands)
-			command = tokens[1].startsWith("%") ? "subRegReg" : "subImmReg";
+		if ("add".equals(command) && twoOperands) return proccessAdd(tokens);
+		if ("sub".equals(command) && twoOperands) return proccessSub(tokens);
 		if ("inc".equals(command) && tokens.length > 1 && tokens[1] != null)
-			command = "incReg";
+			return commands.indexOf("incReg");
 		return commands.indexOf(command);
 	}
 
-	private int proccessMove(String[] tokens) {
-		if (tokens.length < 3 || tokens[2] == null) throw invalidCommand(tokens);
-		if (tokens[1].startsWith("%")) {
-			if (tokens[2].startsWith("%")) return commands.indexOf("moveRegReg");
-			return commands.indexOf("moveMemReg"); // Opcode 22: registrador para memória.
-		}
-		if (tokens[1].matches("[+-]?[0-9]+")) return commands.indexOf("moveImmReg");
-		return commands.indexOf("moveRegMem"); // Opcode 21: memória para registrador.
+	private int proccessAdd(String[] tokens) {
+		if (!tokens[1].startsWith("%")) return commands.indexOf("addMemReg");
+		if (tokens[2].startsWith("%")) return commands.indexOf("addRegReg");
+		return commands.indexOf("addRegMem");
 	}
 
-	private IllegalArgumentException invalidCommand(String[] tokens) {
-		return new IllegalArgumentException("Operandos inválidos: " + String.join(" ", tokens));
+	private int proccessSub(String[] tokens) {
+		if (tokens[1].startsWith("%")) return commands.indexOf("subRegReg");
+		return commands.indexOf("subImmReg");
+	}
+
+	private int proccessMove(String[] tokens) {
+		String p1 = operand(tokens, 1);
+		String p2 = operand(tokens, 2);
+		if (p1.startsWith("%") && p2.startsWith("%")) return commands.indexOf("moveRegReg");
+		// Os nomes abaixo seguem os métodos da C3: o opcode 22 grava na memória.
+		if (p1.startsWith("%")) return commands.indexOf("moveMemReg");
+		if (p1.matches("[+-]?[0-9]+")) return commands.indexOf("moveImmReg");
+		return commands.indexOf("moveRegMem");
+	}
+
+	private String operand(String[] tokens, int index) {
+		if (index >= tokens.length || tokens[index] == null || tokens[index].isEmpty())
+			throw new IllegalArgumentException("Falta operando em " + tokens[0]);
+		return tokens[index];
+	}
+
+	private String register(String value) {
+		if (!value.startsWith("%") || searchRegisterId(value.substring(1), arch.getRegistersList()) < 0)
+			throw new IllegalArgumentException("Registrador inválido: " + value);
+		return value;
+	}
+
+	private String address(String value) {
+		if (value.matches("[A-Za-z][A-Za-z0-9]*")) return "&" + value;
+		int number = Integer.parseInt(value);
+		if (number < 0 || number >= arch.getMemorySize())
+			throw new IllegalArgumentException("Endereço fora da memória: " + value);
+		return Integer.toString(number);
+	}
+
+	private String immediate(String value) {
+		return Integer.toString(Integer.parseInt(value));
 	}
 
 	/**
